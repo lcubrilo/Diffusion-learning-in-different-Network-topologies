@@ -25,7 +25,7 @@ sys.path.insert(0, ROOT)
 
 import numpy as np
 import matplotlib.pyplot as plt
-from config import K1, K2, MU_SWEEP, MC_SEEDS, Z_STAR, ZK_STAR, R_U
+from config import K1, K2, MU_SWEEP, MC_SEEDS, MC_NUM_ITERS, Z_STAR, ZK_STAR, R_U
 from network import build_within_team_matrix, build_cross_team_matrices, sanity_check
 from algorithm import run_cd
 from game import QuadraticGame
@@ -54,7 +54,8 @@ def _mc_error_moments(matrices, mu1, mu2, n_seeds, tag):
     hist0 = None
     for s in range(n_seeds):
         game = QuadraticGame(ZK_STAR, R_U, rng=np.random.default_rng(s))
-        hist = run_cd(game, matrices, mu1=mu1, mu2=mu2, seed=s, use_cache=False,
+        hist = run_cd(game, matrices, mu1=mu1, mu2=mu2, num_iters=MC_NUM_ITERS,
+                      seed=s, use_cache=False,
                       label=f"{tag} seed {s + 1}/{n_seeds}")
         e4_sum = e4_sum + compute_fourth_order_moment(hist, Z_STAR) if e4_sum is not None \
             else compute_fourth_order_moment(hist, Z_STAR)

@@ -17,7 +17,12 @@ MU1 = 0.001
 MU2 = 0.0005
 
 # --- Simulation ---
-NUM_ITERS = 200_000
+# Regular/single-run figures use the paper's full horizon (2×10⁵). The Monte-Carlo
+# moment panels (Figure 1, mc mode) run MC_SEEDS × 4 μ-settings, so 200k there is far
+# too slow; they keep the shorter 41k horizon. This preserves the existing 41k MC
+# figures while letting the regular figures move to 200k.
+NUM_ITERS    = 200_000   # regular / single-run: Fig 1 (regular), Fig 2, Fig 3
+MC_NUM_ITERS = 41_000    # Monte-Carlo moment panels only: Fig 1 (mc)
 RANDOM_SEED = 42
 
 # Monte-Carlo realisations for the error-moment panels in Figure 1.
