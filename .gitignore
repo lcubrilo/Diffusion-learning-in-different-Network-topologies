@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Claude context file
+CLAUDE.md
+results/data/*.npz
+results/data/*.npy

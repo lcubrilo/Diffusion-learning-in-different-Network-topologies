@@ -5,12 +5,13 @@
 #
 # Run: python -m experiments.stepsize_test  (from project root)
 
-import os
+import os, sys
 import matplotlib.pyplot as plt
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIGS = os.path.join(ROOT, "results", "figures")
+sys.path.insert(0, ROOT)
 
-from config import MU_SWEEP, K1, K2, Z_STAR, R_U
+from config import MU_SWEEP, K1, K2, Z_STAR, ZK_STAR, R_U
 from network import build_within_team_matrix, build_cross_team_matrices, sanity_check
 from algorithm import run_cd
 from metrics import compute_msd, to_db
@@ -26,9 +27,10 @@ def stepsize_test():
     sanity_check({**mats, "A1": A1, "A2": A2})
 
     floors = {}
-    for mu1, mu2 in MU_SWEEP:
-        game    = QuadraticGame(Z_STAR, R_U)
-        history = run_cd(game, {**mats, "A1": A1, "A2": A2}, mu1=mu1, mu2=mu2)
+    for idx, (mu1, mu2) in enumerate(MU_SWEEP, 1):
+        game    = QuadraticGame(ZK_STAR, R_U)
+        history = run_cd(game, {**mats, "A1": A1, "A2": A2}, mu1=mu1, mu2=mu2,
+                         label=f"μ₁={mu1} ({idx}/{len(MU_SWEEP)})")
         msd_db  = to_db(compute_msd(history, Z_STAR))
         tail    = msd_db[int(0.9 * len(msd_db)):]   # last 10% ≈ steady state
         floors[mu1] = float(np.mean(tail))

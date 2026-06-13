@@ -132,3 +132,14 @@ def sanity_check(matrices: dict):
         G = nx.from_numpy_array(mat, create_using=nx.DiGraph)
         assert nx.is_strongly_connected(G), \
             f"{name} is not primitive (directed graph is not strongly connected)"
+
+
+if __name__ == "__main__":
+    from config import K1, K2, TOPOLOGIES
+    for topology in TOPOLOGIES:
+        A1   = build_within_team_matrix(topology, K1)
+        A2   = build_within_team_matrix(topology, K2)
+        mats = build_cross_team_matrices(topology)
+        sanity_check({**mats, "A1": A1, "A2": A2})
+        print(f"{topology}: OK")
+    print("All matrices passed Assumption 1 checks.")
