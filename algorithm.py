@@ -55,19 +55,29 @@ def load_or_generate_observations(game, num_iters: int) -> tuple:
     return u_all, d_all
 
 
-def run_cd(game, matrices: dict, mu1=MU1, mu2=MU2, num_iters=NUM_ITERS, label="") -> dict:
-    """Run CD algorithm using pre-generated (cached) observations.
+def run_cd(game, matrices: dict, mu1=MU1, mu2=MU2, num_iters=NUM_ITERS, label="",
+           seed=None, use_cache=True) -> dict:
+    """Run CD algorithm using pre-generated observations.
 
     Returns history dict with keys:
         x: shape (num_iters, K1, M1)
         y: shape (num_iters, K2, M2)
+
+    seed: None  → use RANDOM_SEED for initialisation and (by default) the on-disk
+                  observation cache. Reproducible single run; this is the default.
+          int   → initialise from this seed and generate FRESH observations from the
+                  game's own rng (no cache). Used to draw independent realisations for
+                  Monte-Carlo averaging of the error moments (see reproduce_figure1).
     """
     prefix = f"[{label}] " if label else ""
     print(f"{prefix}Starting {num_iters:,} iterations (μ₁={mu1}, μ₂={mu2})...")
 
-    u_all, d_all = load_or_generate_observations(game, num_iters)
+    if seed is None and use_cache:
+        u_all, d_all = load_or_generate_observations(game, num_iters)
+    else:
+        u_all, d_all = game.generate_all_observations(num_iters)
 
-    rng = np.random.default_rng(RANDOM_SEED)
+    rng = np.random.default_rng(RANDOM_SEED if seed is None else seed)
     x       = rng.normal(size=(K1, M1))
     y       = rng.normal(size=(K2, M2))
     y_prime = rng.normal(size=(K1, M2))

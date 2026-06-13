@@ -20,6 +20,13 @@ MU2 = 0.0005
 NUM_ITERS = 41_000
 RANDOM_SEED = 42
 
+# Monte-Carlo realisations for the error-moment panels in Figure 1.
+# The paper plots E[‖z̃‖⁴] and E[‖z̃‖] (averaged over many runs). On a SINGLE run the
+# two dB curves are locked at exactly 4× (fourth_dB = 4·first_dB); only averaging the
+# two powers separately over independent seeds breaks that lock and lets the steady-state
+# levels separate the way the paper shows. More seeds → smoother curves (and slower).
+MC_SEEDS = 20
+
 # --- Topologies (used by network.py and topology_test.py) ---
 TOPOLOGIES = ["fully_connected", "ring", "single_edge"]
 

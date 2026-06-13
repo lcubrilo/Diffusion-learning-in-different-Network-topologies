@@ -65,13 +65,31 @@ def compute_within_team_disagreement(history: dict) -> np.ndarray:
     return (d1 * K1 + d2 * K2) / K                     # all-agent average
 
 
-def compute_fourth_order_moment(history: dict, z_star: np.ndarray) -> np.ndarray:
-    """Raw ‖z̃_i‖⁴ from a single run — proxy for E[‖z̃_i‖⁴] (paper eq 21b).
+def compute_error_vector(history: dict, z_star: np.ndarray) -> np.ndarray:
+    """Stacked per-iteration error vector z̃(i) over ALL agents, shape (T, K1·M1 + K2·M2).
 
-    NOT smoothed: the paper's curves are visibly noisy (single-realisation stochastic
-    gradients), and that noisiness is part of the result. For a less noisy estimate,
-    average this over several independent seeds (Monte-Carlo) — do NOT moving-average
-    a single run, which distorts the shape. Returns shape (T,) in linear scale.
+    Needed for the paper's FIRST-order moment ‖E[z̃_i]‖ (eq 21c), which is the norm of
+    the error vector AVERAGED over realisations — averaging the vector (not the norm)
+    cancels zero-mean gradient noise and leaves the bias. Average this across seeds,
+    then take the norm. (Contrast compute_first_order_moment, which gives E[‖z̃‖].)
+    """
+    x_err = (history["x"] - z_star[:M1]).reshape(len(history["x"]), -1)   # (T, K1*M1)
+    y_err = (history["y"] - z_star[M1:]).reshape(len(history["y"]), -1)   # (T, K2*M2)
+    return np.concatenate([x_err, y_err], axis=1)
+
+
+def compute_fourth_order_moment(history: dict, z_star: np.ndarray) -> np.ndarray:
+    """Per-iteration ‖z̃_i‖⁴ for ONE run (linear scale) — the integrand of E[‖z̃_i‖⁴]
+    (paper eq 21b). Returns shape (T,).
+
+    IMPORTANT — this is a single realisation, NOT the paper's plotted quantity.
+    The paper plots E[‖z̃_i‖⁴], a Monte-Carlo average over many independent runs.
+    Because expectation does not commute with powers, you MUST average ‖z̃‖⁴ and ‖z̃‖
+    separately across seeds (before to_db). If instead you derive both panels from one
+    run's ‖z̃(i)‖², their dB curves are locked at exactly 4× (10·log10(‖z̃‖⁴) =
+    4·10·log10(‖z̃‖)) at every iteration — a fixed ratio the paper's curves do NOT
+    show (their steady-state levels separate via the Jensen gap). Do NOT moving-average
+    a single run to fake smoothness; average over seeds. See reproduce_figure1._mc_error_moments.
     """
     x_star = z_star[:M1]
     y_star = z_star[M1:]
@@ -82,11 +100,14 @@ def compute_fourth_order_moment(history: dict, z_star: np.ndarray) -> np.ndarray
 
 
 def compute_first_order_moment(history: dict, z_star: np.ndarray) -> np.ndarray:
-    """Raw ‖z̃_i‖ from a single run — proxy for E[‖z̃_i‖] (paper eq 21c).
+    """Per-iteration ‖z̃_i‖ for ONE run (linear scale) — the integrand of E[‖z̃_i‖].
 
-    NOT smoothed (see compute_fourth_order_moment). The instantaneous norm is the
-    paper's "first-order error moment"; it stays noisy at steady state by design.
-    Returns shape (T,) in linear scale.
+    WARNING: E[‖z̃‖] is NOT the paper's "first-order error moment". The paper plots
+    ‖E[z̃_i]‖ (eq 21c) — the norm of the MEAN error (the bias). Averaging the norm
+    (this function) does not cancel the gradient noise, so E[‖z̃‖] only deviates from
+    the 4×-lock by the small Jensen gap; averaging the VECTOR (compute_error_vector,
+    then norm) cancels the noise and gives the much lower, decoupled bias curve.
+    Use compute_error_vector for the figure. Returns shape (T,).
     """
     x_star = z_star[:M1]
     y_star = z_star[M1:]
