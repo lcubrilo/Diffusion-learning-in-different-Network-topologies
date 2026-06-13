@@ -46,41 +46,54 @@ def compute_msd(history: dict, z_star: np.ndarray) -> np.ndarray:
     return (t1 + t2) / K
 
 
-def compute_fourth_order_moment(history: dict, z_star: np.ndarray) -> np.ndarray:
-    """Proxy for E[‖z̃_i‖⁴] from a single run — paper Theorem 1 eq 21b.
+def compute_within_team_disagreement(history: dict) -> np.ndarray:
+    """All-agent average within-team disagreement: how far each agent is from its
+    OWN team's mean estimate, mean_k ‖x_k − x̄‖² (+ same for y), averaged over agents.
 
-    Returns ‖z̃_i‖⁴ as a time series (shape (T,)).
-    In dB: 10*log10(‖z̃_i‖⁴) = 40*log10(‖z̃_i‖).
+    Unlike MSD-to-Nash (which is topology-invariant here because every connected
+    graph reaches the same steady state), this quantity IS topology-dependent:
+    a denser within-team graph reaches consensus faster and tighter. It is therefore
+    the right observable for *seeing* the effect of topology, especially in the
+    first few iterations (consensus-formation transient). Returns shape (T,), linear.
+    """
+    x = history["x"]                                  # (T, K1, M1)
+    y = history["y"]                                  # (T, K2, M2)
+    x_bar = x.mean(axis=1, keepdims=True)             # team-1 mean per iteration
+    y_bar = y.mean(axis=1, keepdims=True)             # team-2 mean per iteration
+    d1 = ((x - x_bar) ** 2).sum(axis=2).mean(axis=1)  # mean over team-1 agents
+    d2 = ((y - y_bar) ** 2).sum(axis=2).mean(axis=1)  # mean over team-2 agents
+    return (d1 * K1 + d2 * K2) / K                     # all-agent average
+
+
+def compute_fourth_order_moment(history: dict, z_star: np.ndarray) -> np.ndarray:
+    """Raw ‖z̃_i‖⁴ from a single run — proxy for E[‖z̃_i‖⁴] (paper eq 21b).
+
+    NOT smoothed: the paper's curves are visibly noisy (single-realisation stochastic
+    gradients), and that noisiness is part of the result. For a less noisy estimate,
+    average this over several independent seeds (Monte-Carlo) — do NOT moving-average
+    a single run, which distorts the shape. Returns shape (T,) in linear scale.
     """
     x_star = z_star[:M1]
     y_star = z_star[M1:]
     x_err = history["x"] - x_star    # (T, K1, M1)
     y_err = history["y"] - y_star    # (T, K2, M2)
     sq = (x_err ** 2).sum(axis=(1, 2)) + (y_err ** 2).sum(axis=(1, 2))   # (T,)
-    return sq ** 2                    # ‖z̃‖⁴
+    return sq ** 2                    # ‖z̃‖⁴, shape (T,)
 
 
 def compute_first_order_moment(history: dict, z_star: np.ndarray) -> np.ndarray:
-    """Proxy for ‖E[z̃_i]‖ from a single run — paper Theorem 1 eq 21c.
+    """Raw ‖z̃_i‖ from a single run — proxy for E[‖z̃_i‖] (paper eq 21c).
 
-    E[z̃_i] is estimated via cumulative running mean of the error vectors
-    (ergodic estimator).  The running mean cancels zero-mean noise, so this
-    converges to the bias and looks visually smoother than the 4th-order curve.
-
-    Returns ‖running_mean(z̃_i)‖ as a time series (shape (T,)).
+    NOT smoothed (see compute_fourth_order_moment). The instantaneous norm is the
+    paper's "first-order error moment"; it stays noisy at steady state by design.
+    Returns shape (T,) in linear scale.
     """
     x_star = z_star[:M1]
     y_star = z_star[M1:]
-
-    # Flatten all agent errors into one long vector per timestep: (T, K1*M1 + K2*M2)
-    x_err = (history["x"] - x_star).reshape(len(history["x"]), -1)   # (T, K1*M1)
-    y_err = (history["y"] - y_star).reshape(len(history["y"]), -1)   # (T, K2*M2)
-    z_err = np.concatenate([x_err, y_err], axis=1)                   # (T, K1*M1+K2*M2)
-
-    # Cumulative mean: mean_i = (1/(i+1)) * sum_{t=0}^{i} z_err[t]
-    running_mean = np.cumsum(z_err, axis=0) / np.arange(1, len(z_err) + 1)[:, None]
-
-    return np.linalg.norm(running_mean, axis=1)   # ‖E[z̃_i]‖ proxy, shape (T,)
+    x_err = history["x"] - x_star    # (T, K1, M1)
+    y_err = history["y"] - y_star    # (T, K2, M2)
+    sq = (x_err ** 2).sum(axis=(1, 2)) + (y_err ** 2).sum(axis=(1, 2))   # (T,)
+    return np.sqrt(sq)               # ‖z̃_i‖, shape (T,)
 
 
 def compute_error_moment(history: dict, z_star: np.ndarray, order: int) -> np.ndarray:

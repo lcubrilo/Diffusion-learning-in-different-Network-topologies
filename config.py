@@ -17,7 +17,7 @@ MU1 = 0.001
 MU2 = 0.0005
 
 # --- Simulation ---
-NUM_ITERS = 200_000
+NUM_ITERS = 41_000
 RANDOM_SEED = 42
 
 # --- Topologies (used by network.py and topology_test.py) ---

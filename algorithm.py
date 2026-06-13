@@ -3,8 +3,19 @@
 # CD algorithm: within-team ATC diffusion + cross-team inference, iterated.
 
 import os
+import sys
 import hashlib
 import numpy as np
+
+# Windows' default console encoding (cp1252) cannot encode the μ/≈/→ characters
+# used in our progress prints, which would crash run_cd with UnicodeEncodeError.
+# Force UTF-8 on stdout/stderr. This is the single import chokepoint for every
+# experiment, so doing it here covers the whole pipeline.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
 
 from config import K1, K2, M1, M2, MU1, MU2, NUM_ITERS, RANDOM_SEED
 from gradients import stochastic_grad_x, stochastic_grad_y

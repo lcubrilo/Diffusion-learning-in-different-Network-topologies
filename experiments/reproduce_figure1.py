@@ -17,8 +17,10 @@ from config import K1, K2, MU_SWEEP, Z_STAR, ZK_STAR, R_U
 from network import build_within_team_matrix, build_cross_team_matrices, sanity_check
 from algorithm import run_cd
 from game import QuadraticGame
-from metrics import (compute_msd_team1, compute_msd_team2, compute_msd_agent,
+from metrics import (compute_msd, compute_msd_team1, compute_msd_team2, compute_msd_agent,
                      compute_fourth_order_moment, compute_first_order_moment, to_db)
+# NOTE: compute_msd_team1/2 average over ALL agents in a team (the paper's
+# "team MSD" / theoretical performance level); compute_msd_agent is a single agent.
 
 
 def reproduce_figure1():
@@ -34,23 +36,27 @@ def reproduce_figure1():
         hist  = run_cd(game, {**mats, "A1": A1, "A2": A2}, mu1=mu1, mu2=mu2,
                        label=f"run {idx}/{len(MU_SWEEP)}")
 
+        msd_team1 = to_db(compute_msd_team1(hist, Z_STAR))        # team-average MSD (all T1 agents)
+        msd_team2 = to_db(compute_msd_team2(hist, Z_STAR))        # team-average MSD (all T2 agents)
         msd_a1t1 = to_db(compute_msd_agent(hist, Z_STAR, team=1, agent=0))
         msd_a1t2 = to_db(compute_msd_agent(hist, Z_STAR, team=2, agent=0))
-        err4 = to_db(compute_fourth_order_moment(hist, Z_STAR))   # ‖z̃‖⁴, paper eq 21b
-        err1 = to_db(compute_first_order_moment(hist, Z_STAR))   # ‖E[z̃]‖ via running mean, paper eq 21c
+        err4 = to_db(compute_fourth_order_moment(hist, Z_STAR))   # raw ‖z̃‖⁴, paper eq 21b
+        err1 = to_db(compute_first_order_moment(hist, Z_STAR))    # raw ‖z̃‖,  paper eq 21c
+        msd_all = to_db(compute_msd(hist, Z_STAR))                # all-agent MSD (for overlay)
 
         # Empirical floor: mean of last 20% as proxy for theoretical performance level.
         # Paper plots team MSD as a flat horizontal line (Theorem 2 prediction); we
-        # approximate that with the simulated steady-state average.
-        tail = slice(int(0.8 * len(msd_a1t1)), None)
-        floor_t1 = float(msd_a1t1[tail].mean())
-        floor_t2 = float(msd_a1t2[tail].mean())
+        # approximate that with the simulated steady-state average of the TEAM MSD
+        # (averaged over all agents in the team — not a single agent).
+        tail = slice(int(0.8 * len(msd_team1)), None)
+        floor_t1 = float(msd_team1[tail].mean())
+        floor_t2 = float(msd_team2[tail].mean())
         print(f"  {label}  →  floor(team1) ≈ {floor_t1:.2f} dB  |  floor(team2) ≈ {floor_t2:.2f} dB")
 
         results.append(dict(label=label, mu1=mu1, mu2=mu2,
                             floor_t1=floor_t1, floor_t2=floor_t2,
                             msd_a1t1=msd_a1t1, msd_a1t2=msd_a1t2,
-                            err1=err1, err4=err4))
+                            err1=err1, err4=err4, msd_all=msd_all))
 
     # --- Build 6-panel figure matching paper layout ---
     fig = plt.figure(figsize=(14, 12))
@@ -70,8 +76,9 @@ def reproduce_figure1():
         ax.grid(True, alpha=0.3)
 
     # Bottom 4: per-team floor (horizontal) + per-agent MSD (falling), one subplot per setting.
-    # Flat lines match paper Fig 1 layout: team MSD shown as the theoretical performance level
-    # (approximated here as the empirical steady-state floor from the last 20% of iterations).
+    # Flat lines match paper Fig 1 layout: the TEAM MSD (averaged over all agents in the team)
+    # shown as the theoretical performance level, approximated by its steady-state floor
+    # (mean of last 20% of iterations). The falling curves are individual agents.
     for i, r in enumerate(results):
         ax = fig.add_subplot(3, 2, 3 + i)
         ax.axhline(r["floor_t1"], color="black", linewidth=1.2,
@@ -92,8 +99,23 @@ def reproduce_figure1():
     os.makedirs(FIGS, exist_ok=True)
     save_path = os.path.join(FIGS, "figure1.png")
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
-    plt.show()
+    plt.close(fig)
     print(f"Saved → {save_path}")
+
+    # --- Simple single-panel overlay: all-agent MSD vs iterations, one curve per μ ---
+    fig2, ax = plt.subplots(figsize=(10, 6))
+    for r in results:
+        ax.plot(r["msd_all"], label=r["label"], linewidth=0.8)
+    ax.set_title("Figure 1: MSD vs Iterations (paper reproduction)")
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("MSD (dB)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    overlay_path = os.path.join(FIGS, "figure1_overlay.png")
+    plt.savefig(overlay_path, dpi=150, bbox_inches="tight")
+    plt.close(fig2)
+    print(f"Saved → {overlay_path}")
 
 
 if __name__ == "__main__":
