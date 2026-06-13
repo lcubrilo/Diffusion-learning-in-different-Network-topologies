@@ -4,6 +4,16 @@ Notes for Milica (algorithm.py, gradients.py, game.py) and Marija (theory).
 These are implementation sketches and cross-checks — not authoritative, but meant to
 help avoid integration bugs and to compare against what you actually deliver.
 
+> **STATUS: code delivered (final).** These were pre-implementation sketches; a few no
+> longer match the shipped code. Two important deviations:
+> 1. **Per-agent targets.** The game uses a distinct target z_k* per agent (paper eq 26),
+>    so `QuadraticGame.__init__(self, zk_star: list, R_u: list, rng=None)` takes a LIST of
+>    K target vectors — not a single `z_star`. Gradients/algorithm/dimension notes below
+>    are still accurate.
+> 2. **config.py is filled in.** `ZK_STAR`, `R_U` (COUPLING=0.5) and the Nash `Z_STAR`
+>    (via `_compute_nash`) are already computed in code — the "For Marija / replace these
+>    placeholder lines" section below is obsolete.
+
 ---
 
 ## For Milica
@@ -11,10 +21,11 @@ help avoid integration bugs and to compare against what you actually deliver.
 ### Function signatures Luka's code depends on
 
 ```python
-# game.py
+# game.py  (DELIVERED signature — per-agent targets)
 class QuadraticGame:
-    def __init__(self, z_star: np.ndarray, R_u: list, rng=None): ...
+    def __init__(self, zk_star: list, R_u: list, rng=None): ...   # zk_star = list of K (M,) vectors
     def generate_observation(self, k: int) -> tuple:  # returns (u, d)
+    def generate_all_observations(self, num_iters) -> tuple:      # (u_all, d_all), used by run_cd
     def cost(self, z: np.ndarray, u: np.ndarray, d: float) -> float: ...
 
 # gradients.py
@@ -151,17 +162,16 @@ def _cross_team_inference(x, y, x_prime, y_prime, matrices):
 
 ## For Marija
 
-### Where to put your computed values
+### Where to put your computed values  — ⚠️ OBSOLETE (already done in config.py)
 
-In `config.py`, replace the two default lines:
-```python
-Z_STAR = np.zeros(M)               # ← replace with your analytically derived z*
-R_U    = [np.eye(M) for _ in range(K)]  # ← replace with your R_{k,u} matrices
-```
+This is now implemented. `config.py` contains:
+- `ZK_STAR` — list of K per-agent targets z_k* (`standard_normal(M)*0.5`).
+- `R_U` — list of K matrices: identity + `COUPLING=0.5` off-diagonal blocks (same per agent).
+- `Z_STAR` — Nash z* = `_compute_nash(R_U, ZK_STAR, TEAM, P, M1, M2)` (solved exactly).
 
-`Z_STAR` shape: `(M,)` = `(15,)` = col{x*, y*}.
-`R_U`: a Python list of K=6 matrices, each shape `(M, M)` = `(15, 15)`.
-Agent indices: 0..K1-1 = Team 1 agents, K1..K-1 = Team 2 agents.
+`Z_STAR` shape `(M,)`=`(15,)`=col{x*,y*}; `R_U` = list of K=6 (15,15) matrices.
+Agent indices: 0..K1-1 = Team 1, K1..K-1 = Team 2. (Kept below: the Assumption-2 check still
+applies and confirms the four MU_SWEEP pairs are valid for the shipped R_U.)
 
 ### Assumption 2 quick check (for the quadratic game)
 
